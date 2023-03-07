@@ -1,0 +1,10 @@
+services:
+  letsencrypt:
+    image: ${DESKTOP_PLUGIN_IMAGE}
+    volumes:
+      - letsencrypt:/secrets
+      - certificates:/certs
+
+volumes:
+  letsencrypt:
+  certificates:

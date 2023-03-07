@@ -1,0 +1,16 @@
+{
+  "icon": "letsencrypt.svg",
+  "vm": {
+    "composefile": "docker-compose.yaml",
+    "exposes": {
+      "socket": "backend.sock"
+    }
+  },
+  "ui": {
+    "dashboard-tab": {
+      "title": "Let's Encrypt",
+      "src": "index.html",
+      "root": "ui"
+    }
+  }
+}
