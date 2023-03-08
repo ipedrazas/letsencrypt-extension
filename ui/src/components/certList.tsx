@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createDockerDesktopClient } from '@docker/extension-api-client';
 import {
+    Button,
     Paper,
     Table,
     TableBody,
@@ -14,7 +15,7 @@ import {
 import VerifiedIcon from '@mui/icons-material/Verified';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import DownloadIcon from '@mui/icons-material/Download';
-import { green } from "@mui/material/colors";
+import { Ingress } from "./ingress";
 
 const client = createDockerDesktopClient();
 
@@ -25,7 +26,6 @@ function useDockerDesktopClient() {
 export function CertificateList() {
     const ddClient = useDockerDesktopClient();
     const [certificates, setCertificates] = useState<any[]>([]);
-
 
     useEffect(() => {
         const instancePromise = listCertificates();
@@ -40,9 +40,40 @@ export function CertificateList() {
           .catch((error: any) => {
             console.log(error);
           });
-    
       };
-    
+
+    const downloadZip = async (domain: string, path: string) => {
+        await ddClient.extension.vm?.service?.get("/download/" + domain).then(response => {
+            exportZip(domain, path);
+        })
+    };
+
+    const exportZip = async (domain: string, path: string ) => {
+        if (path == "") {
+            return;
+        }
+        let args = [
+            'ipedrazas_letsencrypt-desktop-extension-service:/certs/archive/' + domain + '.zip',
+            path + '/' + domain + '.zip'
+          ];
+        await ddClient.docker.cli.exec("cp", args).then((result) => {
+            ddClient.desktopUI.toast.success('Certificates exported successfully');
+        });
+      };
+
+    const selectExportDirectory = (domain: string) => {
+        ddClient.desktopUI.dialog
+          .showOpenDialog({
+            properties: ["openDirectory"],
+          })
+          .then((result) => {
+            if (result.canceled) {
+              return;
+            }
+            downloadZip(domain, result.filePaths[0]);
+          });
+      };
+
 
     return (
         <>
@@ -93,7 +124,14 @@ export function CertificateList() {
                                             {certificate.priv_key}
                                         </TableCell>
                                         <TableCell >
-                                            <DownloadIcon />
+                                           
+                                            <Button
+                                                variant="contained"
+                                                onClick={() => selectExportDirectory(certificate.path)}
+                                                >
+                                                <DownloadIcon />
+                                                </Button>
+                                                <Ingress value={certificate.path} onClick={selectExportDirectory}/>
                                         </TableCell>
 
                                     </TableRow>

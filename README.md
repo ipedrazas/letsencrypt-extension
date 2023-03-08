@@ -20,9 +20,10 @@ The process needs 2 parameters, the credentials file and the name of the domain 
 
 ## Roadmap
 
-- [ ] Implementing the download button
+- [x] Implementing the download button
 - [ ] Adding support for Cloudflare
 - [ ] Implementing certificate renewal
-- [ ] Add certficate to Kubernetes
+- [x] Add certficate to Kubernetes
 - [ ] Add certificate to Docker
 - [ ] Create proxy container with certificates for Docker Compose
+- [ ] Improve certificate actions. 3 dotted Button bar

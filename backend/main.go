@@ -1,11 +1,13 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net"
@@ -13,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/middleware"
@@ -54,6 +57,7 @@ func main() {
 	router.Listener = ln
 
 	router.GET("/certificates", getCerts)
+	router.GET("/download/:domain", downloadZip)
 
 	// Start server
 	go func() {
@@ -95,7 +99,7 @@ func getCerts(c echo.Context) error {
 					logger.Infof("Certs not found in %s - %s", info.Name(), err.Error())
 					return nil
 				}
-
+				cert.Path = info.Name()
 				domains = append(domains, *cert)
 			}
 			return nil
@@ -107,15 +111,42 @@ func getCerts(c echo.Context) error {
 	return c.JSON(http.StatusOK, domains)
 }
 
+func downloadZip(c echo.Context) error {
+	domain := c.Param("domain")
+
+	zipPath := "/certs/archive/" + domain + ".zip"
+	zipDir := "/certs/archive/" + domain
+	err := zipit(zipDir, zipPath, true)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+	// defer cleanUpZip(zipPath)
+	// return c.File(zipPath)
+	return c.JSON(http.StatusOK, map[string]string{"path": zipPath})
+}
+
 func hydrateCert(domain string) (*Cert, error) {
+
+	pk, err := filepath.EvalSymlinks("/certs/live/" + domain + "/privkey.pem")
+	if err != nil {
+		return nil, err
+	}
+	chain, err := filepath.EvalSymlinks("/certs/live/" + domain + "/fullchain.pem")
+	if err != nil {
+		return nil, err
+	}
+	certfile, err := filepath.EvalSymlinks("/certs/live/" + domain + "/cert.pem")
+	if err != nil {
+		return nil, err
+	}
 	cert := &Cert{
-		PrivKey: "/certs/live/" + domain + "/privkey.pem",
+		PrivKey: pk,
 		Valid:   false,
-		Chain:   "/certs/live/" + domain + "/fullchain.pem",
-		Cert:    "/certs/live/" + domain + "/cert.pem",
+		Chain:   chain,
+		Cert:    certfile,
 	}
 
-	cert, err := verifyCert(cert, domain)
+	err = verifyCert(cert, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -123,28 +154,28 @@ func hydrateCert(domain string) (*Cert, error) {
 	return cert, nil
 }
 
-func verifyCert(cert *Cert, name string) (*Cert, error) {
+func verifyCert(cert *Cert, name string) error {
 	fullChain, err := os.ReadFile(cert.Chain)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	certfile, err := os.ReadFile(cert.Cert)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM(fullChain)
 	if !ok {
-		return nil, fmt.Errorf("failed to parse root certificate")
+		return fmt.Errorf("failed to parse root certificate")
 	}
 
 	block, _ := pem.Decode(certfile)
 	if block == nil {
-		return nil, fmt.Errorf("failed to parse certificate PEM")
+		return fmt.Errorf("failed to parse certificate PEM")
 	}
 	x509Cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %v", err.Error())
+		return fmt.Errorf("failed to parse certificate: %v", err.Error())
 	}
 
 	opts := x509.VerifyOptions{
@@ -153,13 +184,92 @@ func verifyCert(cert *Cert, name string) (*Cert, error) {
 	}
 
 	if _, err := x509Cert.Verify(opts); err != nil {
-		return nil, err
+		return err
 	}
 	cert.Expiry = x509Cert.NotAfter.Format(time.UnixDate)
 	cert.Domains = x509Cert.DNSNames
 	cert.Valid = true
 	cert.DaysLeft = int64(math.Round(float64(time.Until(x509Cert.NotAfter).Hours() / 24)))
-	return cert, nil
+	return nil
+}
+
+// func cleanUpZip(zipPath string) {
+// 	err := os.Remove(zipPath)
+// 	if err != nil {
+// 		logger.Error(err)
+// 	}
+// }
+
+func zipit(source, target string, needBaseDir bool) error {
+	zipfile, err := os.Create(target)
+	if err != nil {
+		return err
+	}
+	defer zipfile.Close()
+
+	archive := zip.NewWriter(zipfile)
+	defer archive.Close()
+
+	info, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	var baseDir string
+	if info.IsDir() {
+		baseDir = filepath.Base(source)
+	}
+
+	filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		if baseDir != "" {
+			if needBaseDir {
+				header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
+			} else {
+				path := strings.TrimPrefix(path, source)
+				if len(path) > 0 && (path[0] == '/' || path[0] == '\\') {
+					path = path[1:]
+				}
+				if len(path) == 0 {
+					return nil
+				}
+				header.Name = path
+			}
+		}
+
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+
+		writer, err := archive.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(writer, file)
+		return err
+	})
+
+	return err
 }
 
 type Cert struct {
@@ -170,4 +280,5 @@ type Cert struct {
 	Chain    string   `json:"chain,omitempty"`
 	PrivKey  string   `json:"priv_key,omitempty"`
 	Cert     string   `json:"cert,omitempty"`
+	Path     string   `json:"path,omitempty"`
 }

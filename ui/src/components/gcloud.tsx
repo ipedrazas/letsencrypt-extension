@@ -19,11 +19,13 @@ function useDockerDesktopClient() {
 
 export function GoogleCloudDNS() {
 
+  const ddClient = useDockerDesktopClient();
+
   const [file, setFile] = useState<string>("");
+  const [path, setPath] = useState<string>("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [email, setEmail] = useState<string>("");
   const [domain, setDomain] = useState<string>("");
-  const ddClient = useDockerDesktopClient();
   const [logs, setLogs] = useState<(string | undefined)[]>([]);
   
   const extractFilename = (filepath: string) => {
@@ -48,7 +50,7 @@ export function GoogleCloudDNS() {
     let cmdArgs = [
       "--rm",
       "-v",
-      "ipedrazas_letsencrypt-desktop-extension_letsencrypt:/secrets",
+      path + ":/secrets",
       "-v",
       "ipedrazas_letsencrypt-desktop-extension_certificates:/etc/letsencrypt",
       'certbot/dns-google:arm64v8-latest',
@@ -68,22 +70,22 @@ export function GoogleCloudDNS() {
     cmdArgs.push("--agree-tos");
     cmdArgs.push("--no-eff-email");
     console.log(cmdArgs);
-    const requestCert = ddClient.docker.cli.exec("run", cmdArgs, {
-      stream: {
-        onOutput(data): void {
-          setLogs((current) => [...current, data.stdout ? data.stdout : data.stderr]);
-        },
-        onError(error: unknown): void {
-          ddClient.desktopUI.toast.error('An error occurred');
-          console.log(error);
-        },
-        onClose(exitCode) {
-          console.log(`onClose with exit code ${exitCode}`);
-
-        },
-        splitOutputLines: true,
-      },
-    });
+    // const requestCert = ddClient.docker.cli.exec("run", cmdArgs, {
+    //   stream: {
+    //     onOutput(data): void {
+    //       setLogs((current) => [...current, data.stdout ? data.stdout : data.stderr]);
+    //     },
+    //     onError(error: unknown): void {
+    //       ddClient.desktopUI.toast.error('An error occurred');
+    //       console.log(error);
+    //     },
+    //     onClose(exitCode) {
+    //       console.log(`onClose with exit code ${exitCode}`);
+    //       ddClient.desktopUI.toast.success('Certificate created successfully');
+    //     },
+    //     splitOutputLines: true,
+    //   },
+    // });
   };
 
 
@@ -102,7 +104,11 @@ export function GoogleCloudDNS() {
         if (result.canceled) {
           return;
         }
-        addFile(result.filePaths[0]);
+        // setPath(result.filePaths[0]);
+        setPath(result.filePaths[0].replace(extractFilename(result.filePaths[0]), ''));
+        setFile(extractFilename(result.filePaths[0]));
+        
+        // addFile(result.filePaths[0]);
       });
   };
 
@@ -157,6 +163,7 @@ export function GoogleCloudDNS() {
                       Generating the certificate takes around 90 seconds, please be patient.
                       <br /><br />  <br /><br />
                   </Typography>
+
                   <Card style={{ padding: 20, pointerEvents: 'none' }}>
                     {logs.map(log => (
                       <>

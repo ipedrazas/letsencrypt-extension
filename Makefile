@@ -35,3 +35,6 @@ debug-ui: debug # Set UI hot reload
 	docker extension dev ui-source $(IMAGE):$(TAG) http://localhost:3000
 ui: debug-ui # Run UI hot reload
 	cd ui && npm run dev
+
+test-ingress:
+	cat manifests/app.yaml | sed -e 's/{{domain}}/docker.notprod.uk/g' | kubectl apply -f -
