@@ -53,7 +53,7 @@ export function GoogleCloudDNS() {
       path + ":/secrets",
       "-v",
       "ipedrazas_letsencrypt-desktop-extension_certificates:/etc/letsencrypt",
-      'certbot/dns-google:arm64v8-latest',
+      'certbot/dns-google:latest',
       'certonly',
       '--dns-google',
       '--dns-google-credentials',
@@ -70,22 +70,22 @@ export function GoogleCloudDNS() {
     cmdArgs.push("--agree-tos");
     cmdArgs.push("--no-eff-email");
     console.log(cmdArgs);
-    // const requestCert = ddClient.docker.cli.exec("run", cmdArgs, {
-    //   stream: {
-    //     onOutput(data): void {
-    //       setLogs((current) => [...current, data.stdout ? data.stdout : data.stderr]);
-    //     },
-    //     onError(error: unknown): void {
-    //       ddClient.desktopUI.toast.error('An error occurred');
-    //       console.log(error);
-    //     },
-    //     onClose(exitCode) {
-    //       console.log(`onClose with exit code ${exitCode}`);
-    //       ddClient.desktopUI.toast.success('Certificate created successfully');
-    //     },
-    //     splitOutputLines: true,
-    //   },
-    // });
+    const requestCert = ddClient.docker.cli.exec("run", cmdArgs, {
+      stream: {
+        onOutput(data): void {
+          setLogs((current) => [...current, data.stdout ? data.stdout : data.stderr]);
+        },
+        onError(error: unknown): void {
+          ddClient.desktopUI.toast.error('An error occurred');
+          console.log(error);
+        },
+        onClose(exitCode) {
+          console.log(`onClose with exit code ${exitCode}`);
+          ddClient.desktopUI.toast.success('Certificate created successfully');
+        },
+        splitOutputLines: true,
+      },
+    });
   };
 
 
