@@ -2,13 +2,16 @@ import React, { useEffect, useState } from "react";
 import { createDockerDesktopClient } from '@docker/extension-api-client';
 import {
     Button,
+    Link,
     Paper,
+    Stack,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Tooltip,
     Typography,
   } from "@mui/material";
 
@@ -16,6 +19,7 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import DownloadIcon from '@mui/icons-material/Download';
 import { Ingress } from "./ingress";
+import { getIngress } from "../helper/kubernetes";
 
 const client = createDockerDesktopClient();
 
@@ -26,11 +30,57 @@ function useDockerDesktopClient() {
 export function CertificateList() {
     const ddClient = useDockerDesktopClient();
     const [certificates, setCertificates] = useState<any[]>([]);
+    const [hasIngress, setIngress] = React.useState(false);
+    const [ingressList, setIngressList] = React.useState<any[]>([]);
+
+    
+    if(!hasIngress) {
+        getIngress(ddClient).then((ings) => {
+            if (!ings) {
+                return;
+            }
+            let hosts = [];
+            for (let i = 0; i < ings.length; i++) {
+                const element = ings[i];
+                let host = element.spec.rules[0].host;
+                hosts.push(host);
+            }
+            setIngressList(ings);
+            setIngress(true);
+        });
+    }
 
     useEffect(() => {
         const instancePromise = listCertificates();
     }, []);
 
+    const getIngressCert = (cert: string) => {
+        for (let i = 0; i < ingressList.length; i++) {
+            const ing = ingressList[i];
+            let element = ing.spec.rules[0].host;
+            if (element == cert) {
+                return (<VerifiedIcon sx={{color: "teal"}}/>);
+            }
+            // if it's a wildcard cert, we check if the domain is a subdomain of the cert
+            // *.something.else.com will match abc.something.else.com
+            if (cert.startsWith("*.")) {
+                let domain = cert.substring(2);
+                if (element.endsWith(domain)) {
+                    let scheme = ing.spec.tls? "https" : "http";
+                    return (                        
+                    <Link
+                        onClick={async () => {
+                            ddClient.host.openExternal(scheme + "://" + element)
+                        }}>
+                        {element}
+                    </Link>
+    
+                   );
+                }
+            }
+        }
+        return null;
+    }
 
     const listCertificates = async () => {
         await ddClient.extension.vm?.service?.get("/certificates")
@@ -86,10 +136,8 @@ export function CertificateList() {
                                     <TableCell align="right">Domain</TableCell>
                                     <TableCell align="right">Expiry Date</TableCell>
                                     <TableCell align="right">Days left</TableCell>
-                                    <TableCell >Cert</TableCell>
-                                    <TableCell >Chain</TableCell>
-                                    <TableCell >Private Key</TableCell>
-                                    <TableCell ></TableCell>
+                                    <TableCell align="right">Ingress</TableCell>
+                                    <TableCell align="center">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -114,24 +162,23 @@ export function CertificateList() {
                                         <TableCell align="right">
                                             {certificate.days_left}
                                         </TableCell>
-                                        <TableCell >
-                                            {certificate.cert}
+                                        <TableCell align="right">
+                                            {getIngressCert(certificate.domains[0]) }
                                         </TableCell>
+                                     
                                         <TableCell >
-                                            {certificate.chain}
-                                        </TableCell>
-                                        <TableCell >
-                                            {certificate.priv_key}
-                                        </TableCell>
-                                        <TableCell >
-                                           
-                                            <Button
-                                                variant="contained"
-                                                onClick={() => selectExportDirectory(certificate.path)}
-                                                >
+                                            <Tooltip title="Export Certificate">
+                                                <Button
+                                                    variant="contained"
+                                                    onClick={() => selectExportDirectory(certificate.path)}
+                                                    >
                                                 <DownloadIcon />
                                                 </Button>
-                                                <Ingress value={certificate.path} onClick={selectExportDirectory}/>
+                                            </Tooltip>
+                                                &nbsp;
+                                            
+                                            <Ingress value={certificate.path} onClick={selectExportDirectory} />
+                                            
                                         </TableCell>
 
                                     </TableRow>

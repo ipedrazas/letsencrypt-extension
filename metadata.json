@@ -18,17 +18,17 @@
       {
         "darwin": [
           {
-            "path": "/darwin/kubectl"
+            "path": "/darwin/arm64/kubectl"
           }
         ],
         "windows": [
           {
-            "path": "/windows/kubectl.exe"
+            "path": "/windows/amd64/kubectl.exe"
           }
         ],
         "linux": [
           {
-            "path": "/linux/kubectl"
+            "path": "/linux/amd64/kubectl"
           }
         ]
       }

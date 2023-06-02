@@ -29,7 +29,7 @@ help: ## Show this help
 
 debug: # Show Chrome-dev tools
 	docker extension dev debug $(IMAGE):$(TAG)
-debug-reset: # Reset Chrome-dev tools
+reset-debug: # Reset Chrome-dev tools
 	docker extension dev reset $(IMAGE):$(TAG)
 debug-ui: debug # Set UI hot reload
 	docker extension dev ui-source $(IMAGE):$(TAG) http://localhost:3000

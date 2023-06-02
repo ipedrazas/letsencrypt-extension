@@ -7,9 +7,11 @@ import {
     Card,
     Grid,
     TextField,
+    Tooltip,
     Typography,
   } from "@mui/material";
   import HttpsIcon from '@mui/icons-material/Https';
+  import AddModeratorIcon from '@mui/icons-material/AddModerator';
 
 const client = createDockerDesktopClient();
 
@@ -45,10 +47,10 @@ export const Ingress = ({
 
     const installIngress = async (domain: string) => {
         await exportCerts(domain);
-        const cert = await ddClient.extension.host?.cli.exec("cat", [
-            "/tmp/fullchain.pem",
-            '/tmp/cert.pem' 
-          ])
+        // const cert = await ddClient.extension.host?.cli.exec("cat", [
+        //     "/tmp/fullchain.pem",
+        //     '/tmp/cert.pem' 
+        //   ])
         const output = await ddClient.extension.host?.cli.exec("kubectl", [
             "create",
             "secret",
@@ -64,12 +66,14 @@ export const Ingress = ({
 
     return (
         <>
-        <Button
-            variant="contained"
-            onClick={() => installIngress(value)}
-            >
-            <HttpsIcon />
-        </Button>
+        <Tooltip title="Add as Kubernetes secret">
+          <Button
+              variant="contained"
+              onClick={() => installIngress(value)}
+              >
+              <AddModeratorIcon />
+          </Button>
+        </Tooltip>
         </>
  );
 }

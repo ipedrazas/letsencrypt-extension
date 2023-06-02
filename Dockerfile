@@ -10,22 +10,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -ldflags="-s -w" -o bin/service
 
-FROM alpine AS dl
-WORKDIR /tmp
-RUN apk add --no-cache curl tar
-ARG TARGETARCH
-RUN <<EOT ash
-    mkdir -p /out/darwin
-    curl -fSsLo /out/darwin/kubectl "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/darwin/${TARGETARCH}/kubectl"
-    chmod a+x /out/darwin/kubectl
-EOT
-RUN <<EOT ash
-    if [ "amd64" = "$TARGETARCH" ]; then
-        mkdir -p /out/windows
-        curl -fSsLo /out/windows/kubectl.exe "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/windows/amd64/kubectl.exe"
-    fi
-EOT
-
 
 FROM --platform=$BUILDPLATFORM node:18.12-alpine3.16 AS client-builder
 WORKDIR /ui
@@ -51,7 +35,7 @@ LABEL org.opencontainers.image.title="Let's Encrypt" \
     com.docker.extension.changelog=""
 
 COPY --from=builder /backend/bin/service /
-COPY --from=dl /out /
+COPY --from=harbor.alacasa.uk/library/kubectl-all:v1.27.2 / /
 COPY docker-compose.yaml .
 COPY metadata.json .
 COPY letsencrypt.svg .
